@@ -56,7 +56,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 	char* FirmwareBoardId = NULL;
 	int FirmwareBoardIdLength = 0;
 	int force = 0;
-	BOOLEAN flash_ro = TRUE, flash_rw = TRUE;
+	BOOLEAN flash_ro = TRUE, flash_rw = TRUE, prompt_for_cancel = TRUE;
 	CHAR16* filename = NULL;
 
 	for(int i = 1; i < argc; ++i) {
@@ -66,6 +66,8 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 			flash_rw = FALSE;
 		else if(StrCmp(argv[i], L"--rw") == 0)
 			flash_ro = FALSE;
+		else if(StrCmp(argv[i], L"--no-prompt") == 0)
+			prompt_for_cancel = FALSE;
 		else {
 			filename = argv[i];
 			// the filename is the last argument. All stop!
@@ -83,6 +85,7 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		      L"    --ro        Only reflash the RO portion (and bootloader)\n"
 		      L"    --rw        Only reflash the RW portion\n"
 		      L"    -f          Force: Skip the battery and AC check\n"
+		      L"    --no-prompt Skip \"Press any key to cancel\"\n"
 		      );
 		return 1;
 	}
@@ -157,15 +160,17 @@ EFI_STATUS cmd_reflash(int argc, CHAR16** argv) {
 		goto Out;
 	}
 
-	Print(L"*** STARTING FLASH (PRESS ANY KEY TO CANCEL)\n");
+	Print(L"*** STARTING FLASH%s\n", prompt_for_cancel ? L" (PRESS ANY KEY TO CANCEL)" : L"");
 	Key.ScanCode = SCAN_NULL;
 	for(int i = 7; i > 0; i--) {
 		Print(L"%d...", i);
 		gBS->Stall(1000000);
-		EFI_STATUS KeyStatus = gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
-		if(!EFI_ERROR(KeyStatus)) {
-			Print(L"\nABORTED!\n");
-			return EFI_ABORTED;
+		if(prompt_for_cancel) {
+			EFI_STATUS KeyStatus = gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+			if(!EFI_ERROR(KeyStatus)) {
+				Print(L"\nABORTED!\n");
+				return EFI_ABORTED;
+			}
 		}
 	}
 	Print(L"\n");
